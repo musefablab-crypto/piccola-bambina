@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piccola bambina ti aspettiamo</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#fff5f8;color:#333;margin:0;padding:22px}
+.container{width:100%;max-width:1120px;margin:0 auto;display:grid;grid-template-columns:minmax(280px,0.85fr) minmax(0,1.15fr);gap:28px;align-items:start}
+.photo-panel{position:sticky;top:22px}
+.photo-panel img{display:block;width:100%;height:min(82vh,850px);object-fit:cover;object-position:center;border-radius:20px;box-shadow:0 4px 18px #00000018}
+.content{min-width:0}
+h1{text-align:center;color:#b83e68;font-size:34px;line-height:1.2;margin:12px 0 30px}
+.top{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.buttons{display:flex;flex-direction:column;gap:10px}
+button{cursor:pointer;font-family:inherit;touch-action:manipulation}
+.action{border:0;border-radius:15px;padding:20px 8px;font-size:17px;font-weight:bold;color:#fff;min-height:75px}
+#inizio{background:#c34d75}#fine{background:#477b8c}
+.action:disabled{opacity:.35;cursor:not-allowed}
+.counter,.timer-box,.info-box{background:#fff;border-radius:16px;padding:20px;text-align:center;box-shadow:0 2px 8px #0000000d}
+.counter{display:flex;flex-direction:column;justify-content:center}
+.counter-label,.timer-label,.info-label{color:#777;font-size:14px}
+#numero{font-size:65px;font-weight:bold;color:#b83e68;margin-top:10px}
+.timer-box{margin-bottom:15px}#timer{font-size:40px;font-weight:bold;margin:12px 0;font-variant-numeric:tabular-nums}
+#stato{color:#888;font-size:14px}.active{color:#b83e68!important;font-weight:bold}
+.info-box{margin-bottom:25px}#intervallo{font-size:25px;font-weight:bold;margin-top:8px}
+h2{font-size:21px}
+.table-wrapper{overflow-x:auto;background:#fff;border-radius:14px;box-shadow:0 2px 8px #0000000d}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}
+th{background:#f5dce5;padding:13px 10px;text-align:left}td{padding:13px 10px;border-bottom:1px solid #eee}
+.empty{text-align:center;color:#888;padding:25px}
+#exportExcel{display:block;width:100%;margin:20px auto 0;padding:15px;background:#287a52;color:white;border:0;border-radius:12px;font-size:16px;font-weight:bold}
+#exportExcel:disabled{opacity:.45;cursor:not-allowed}
+#reset{display:block;margin:30px auto 15px;padding:12px 25px;background:transparent;color:#b83e68;border:1px solid #c34d75;border-radius:10px;font-size:15px}
+.note{text-align:center;color:#888;font-size:12px;line-height:1.5}
+@media(max-width:760px){body{padding:12px}.container{display:flex;flex-direction:column;gap:18px}.photo-panel{position:static;width:100%}.photo-panel img{height:250px;object-position:center 42%}.content{width:100%}h1{font-size:29px;margin:4px 0 22px}.action{font-size:15px;padding:16px 6px}#numero{font-size:54px}.counter,.timer-box,.info-box{padding:16px}}
+</style>
+</head>
+<body><main class="container">
+<section class="photo-panel"><img src="piccola-bambina.jpeg" alt="Fotografia di una persona al mare"></section>
+<section class="content"><h1>Piccola bambina ti aspettiamo</h1>
+<div class="top"><div class="buttons"><button id="inizio" class="action">Inizio contrazione</button><button id="fine" class="action" disabled>Fine contrazione</button></div><div class="counter"><div class="counter-label">Totale contrazioni</div><div id="numero">0</div></div></div>
+<div class="timer-box"><div class="timer-label">Durata contrazione in corso</div><div id="timer">00:00</div><div id="stato">In attesa della prima contrazione</div></div>
+<div class="info-box"><div class="info-label">Intervallo tra le ultime due contrazioni</div><div id="intervallo">—</div></div>
+<h2>Storico contrazioni</h2><div class="table-wrapper"><table><thead><tr><th>N°</th><th>Inizio</th><th>Fine</th><th>Durata</th><th>Intervallo</th></tr></thead><tbody id="storico"></tbody></table></div>
+<button id="exportExcel" disabled>Scarica Excel (.xlsx)</button>
+<button id="reset">Azzera tutto</button><p class="note">L'intervallo è calcolato tra gli inizi di due contrazioni consecutive. I dati sono salvati nel browser di questo dispositivo.</p>
+</section></main>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(()=>{
+'use strict';
+const STORAGE_KEY='lorenzo_contrazioni_v2',ACTIVE_KEY='lorenzo_inizio_attivo_v2';
+const el=id=>document.getElementById(id);
+let contrazioni=[],inizioAttivo=null;
+try{const salvate=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');if(Array.isArray(salvate))contrazioni=salvate.filter(c=>c&&Number.isFinite(c.inizio)&&Number.isFinite(c.fine)&&c.fine>=c.inizio&&c.fine<=Date.now());const attivo=JSON.parse(localStorage.getItem(ACTIVE_KEY)||'null');if(Number.isFinite(attivo)&&attivo>0&&attivo<=Date.now())inizioAttivo=attivo;}catch(e){console.warn('Dati non recuperabili',e)}
+const fmt=ms=>{const s=Math.floor(Math.max(0,ms)/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return(h?[h,m,sec]:[m,sec]).map(n=>String(n).padStart(2,'0')).join(':')};
+const orario=t=>new Date(t).toLocaleTimeString('it-IT');
+function salva(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(contrazioni));if(inizioAttivo===null)localStorage.removeItem(ACTIVE_KEY);else localStorage.setItem(ACTIVE_KEY,JSON.stringify(inizioAttivo));}catch(e){console.warn('Salvataggio non disponibile',e)}}
+function pulsanti(){const attiva=inizioAttivo!==null;el('inizio').disabled=attiva;el('fine').disabled=!attiva;el('stato').textContent=attiva?'Contrazione in corso...':'In attesa della prossima contrazione';el('stato').classList.toggle('active',attiva)}
+function timer(){if(inizioAttivo!==null)el('timer').textContent=fmt(Date.now()-inizioAttivo)}
+function storico(){el('exportExcel').disabled=!contrazioni.length;el('numero').textContent=contrazioni.length;const tbody=el('storico');tbody.replaceChildren();if(!contrazioni.length){const c=tbody.insertRow().insertCell();c.colSpan=5;c.className='empty';c.textContent='Nessuna contrazione registrata'}contrazioni.forEach((c,i)=>{const prev=contrazioni[i-1];const vals=[i+1,orario(c.inizio),orario(c.fine),fmt(c.fine-c.inizio),prev?fmt(c.inizio-prev.inizio):'—'];const tr=tbody.insertRow();vals.forEach(v=>{tr.insertCell().textContent=v})});const n=contrazioni.length;el('intervallo').textContent=n>=2?fmt(contrazioni[n-1].inizio-contrazioni[n-2].inizio):'—'}
+el('inizio').addEventListener('click',()=>{if(inizioAttivo!==null)return;inizioAttivo=Date.now();el('timer').textContent='00:00';salva();pulsanti();timer()});
+el('fine').addEventListener('click',()=>{if(inizioAttivo===null)return;contrazioni.push({inizio:inizioAttivo,fine:Date.now()});inizioAttivo=null;salva();pulsanti();storico();el('timer').textContent='00:00'});
+el('exportExcel').addEventListener('click',()=>{
+ if(!contrazioni.length)return;
+ if(typeof XLSX==='undefined'){
+   alert('Per scaricare il file Excel serve una connessione Internet. Riprova quando sei online.');return;
+ }
+ const righe=[['N°','Data','Inizio','Fine','Durata','Intervallo']];
+ contrazioni.forEach((c,i)=>{
+   const prev=contrazioni[i-1];
+   righe.push([i+1,new Date(c.inizio).toLocaleDateString('it-IT'),orario(c.inizio),orario(c.fine),fmt(c.fine-c.inizio),prev?fmt(c.inizio-prev.inizio):'—']);
+ });
+ const wb=XLSX.utils.book_new();
+ const ws=XLSX.utils.aoa_to_sheet(righe);
+ ws['!cols']=[{wch:7},{wch:14},{wch:14},{wch:14},{wch:14},{wch:16}];
+ XLSX.utils.book_append_sheet(wb,ws,'Contrazioni');
+ const data=new Date().toISOString().slice(0,10);
+ XLSX.writeFile(wb,`contrazioni-${data}.xlsx`);
+});
+el('reset').addEventListener('click',()=>{if(!confirm('Vuoi cancellare tutte le contrazioni?'))return;contrazioni=[];inizioAttivo=null;salva();pulsanti();storico();el('timer').textContent='00:00'});
+pulsanti();storico();timer();setInterval(timer,250);
+})();
+</script></body></html>
